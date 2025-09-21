@@ -4,6 +4,8 @@ from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from .db import Base, engine
 import os
+import dotenv
+dotenv.load_dotenv()
 
 def create_app():
 	app = Flask(__name__, instance_relative_config=False)
@@ -26,4 +28,4 @@ def create_app():
 	return app
 
 if __name__ == "__main__":
-	create_app().run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+	create_app().run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
