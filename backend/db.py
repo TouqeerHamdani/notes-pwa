@@ -11,8 +11,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is required but not set")
 
-logging.debug(f"Using DATABASE_URL: {DATABASE_URL}")
-
 try:
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
     logging.debug("Database engine created successfully.")
