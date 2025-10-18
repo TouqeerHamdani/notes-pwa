@@ -13,10 +13,11 @@ def user_required(f):
         db = SessionLocal()
         try:
             user = db.query(User).filter_by(id=user_id).first()
+            if not user:
+                return jsonify({"msg": "User not found"}), 401
         finally:
             db.close()
-        return f(user, *args, **kwargs)
-    return decorated
+        return f(user, *args, **kwargs)    return decorated
 import os
 import re
 import logging

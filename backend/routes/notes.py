@@ -87,9 +87,8 @@ def update_note(current_user, note_id):
     if not content:
         return jsonify({
             "success": False,
-            "message": "Content is required"
+            "message": "Content cannot be empty"
         }), 400
-
     db = SessionLocal()
     try:
         note = db.query(Note).filter(
