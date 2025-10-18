@@ -17,7 +17,8 @@ def user_required(f):
                 return jsonify({"msg": "User not found"}), 401
         finally:
             db.close()
-        return f(user, *args, **kwargs)    return decorated
+        return f(user, *args, **kwargs)    
+    return decorated
 import os
 import re
 import logging
