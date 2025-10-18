@@ -29,7 +29,9 @@ def create_app():
 
 	# Import and register blueprints
 	from .routes.auth import auth_bp
+	from .routes.notes import notes
 	app.register_blueprint(auth_bp, url_prefix="/auth")
+	app.register_blueprint(notes, url_prefix="/api")
 
 	# Create tables (simple approach; replace with migrations if needed)
 	from . import models 

@@ -1,8 +1,24 @@
 from flask import Blueprint, request, jsonify
+from functools import wraps
+import jwt
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity
 from backend.db import SessionLocal
 from backend.models import User
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+def user_required(f):
+    @jwt_required()
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = get_jwt_identity()
+        db = SessionLocal()
+        user = db.query(User).filter_by(id=user_id).first()
+        db.close()
+        if not user:
+            return jsonify({'message': 'User not found!'}), 401
+        return f(user, *args, **kwargs)
+    return decorated
 import os
 import re
 import logging
@@ -66,7 +82,7 @@ def login():
             user = db.query(User).filter_by(email=email.lower()).first()
             if not user or not bcrypt.check_password_hash(user.password_hash, password):
                 return jsonify({"msg": "Bad credentials"}), 401
-            access = create_access_token(identity=user.id)
+            access = create_access_token(identity=str(user.id), expires_delta=False)
             return jsonify({"access_token": access}), 200
         finally:
             db.close()

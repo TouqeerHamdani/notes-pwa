@@ -1,7 +1,5 @@
 venv
 .venv
 /venv
-
-requirements.txt
-
-/backend
+.env
+__pycache__/
