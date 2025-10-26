@@ -1,24 +1,25 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
 from .db import Base
 
 class User(Base):
-	__tablename__ = "users"
-	id = Column(Integer, primary_key=True)
-	email = Column(String, unique=True, nullable=False)
-	password_hash = Column(String, nullable=False)
-	created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-	notes = relationship("Note", back_populates="user", cascade="all, delete-orphan")
+    __tablename__ = 'users'
+    __table_args__ = {'schema': 'auth'}
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    email = Column(String)
+    notes = relationship("Note", back_populates="user")
 
 class Note(Base):
-	__tablename__ = "notes"
-	id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-	user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-	content = Column(Text)
-	last_modified = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-	is_deleted = Column(Boolean, default=False)
-	created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-	user = relationship("User", back_populates="notes")
+    __tablename__ = "notes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('auth.users.id'), nullable=False)
+    title = Column(Text)
+    content = Column(Text)
+    last_modified = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    is_synced = Column(Boolean, default=False, nullable=False)
+    is_deleted = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    user = relationship("User", back_populates="notes")
