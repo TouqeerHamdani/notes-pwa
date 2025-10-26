@@ -18,7 +18,12 @@ ENV = os.getenv("FLASK_ENV", "development")
 client_id = os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID")
 secret = os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET")
 
+if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
+if not SUPABASE_ANON_KEY:
+        logging.error("SUPABASE_ANON_KEY not configured")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+supabase_anon: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -50,7 +55,7 @@ def user_required(f):
 
         try:
             # Supabase tokens are HS256 signed by the project's JWT secret when using the default config
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
             user_id = payload.get("sub")
             email = payload.get("email")
             if not user_id:
@@ -111,9 +116,9 @@ def google_oauth():
     if not SUPABASE_ANON_KEY:
         logging.error("SUPABASE_ANON_KEY not configured")
         return jsonify({"msg": "Server misconfiguration"}), 500
-
+    
     try:
-        resp = supabase.auth.sign_in_with_oauth({"provider": "google"})
+        resp = supabase_anon.auth.sign_in_with_oauth({"provider": "google"})
     except AuthApiError as e:
         return jsonify({"msg": "Invalid credentials", "detail": e.message}), 401
 
@@ -139,27 +144,42 @@ def login():
         logging.error("SUPABASE_ANON_KEY not configured")
         return jsonify({"msg": "Server misconfiguration"}), 500
 
+
     try:
-        resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        resp = supabase_anon.auth.sign_in_with_password({"email": email, "password": password})
     except AuthApiError as e:
         return jsonify({"msg": "Invalid credentials", "detail": e.message}), 401
-
+    
+    if not resp.session:
+        return jsonify({"msg": "No session returned"}), 500
+    
     access_token = resp.session.access_token
     refresh_token = resp.session.refresh_token
 
     # Set cookies (HttpOnly). In production set secure=True and adjust SameSite as needed.
     res = make_response(jsonify({"msg": "ok"}))
     secure_flag = ENV == "production"
+    # Supabase default access token expires in 3600 seconds (1 hour)
+    # Refresh token typically expires in 7 days
     if access_token:
-        res.set_cookie("sb-access-token", access_token, httponly=True, secure=secure_flag, samesite="Lax", path="/")
+        res.set_cookie("sb-access-token", access_token, httponly=True, secure=secure_flag, samesite="Lax", path="/", max_age=3600)
     if refresh_token:
-        res.set_cookie("sb-refresh-token", refresh_token, httponly=True, secure=secure_flag, samesite="Lax", path="/")
+        res.set_cookie("sb-refresh-token", refresh_token, httponly=True, secure=secure_flag, samesite="Lax", path="/", max_age=604800)
 
     return res
 
 @auth_bp.route("/logout", methods=["POST"])
-def logout():
+@user_required
+def logout(user):
     """Clear auth cookies to log out the user."""
+    token = request.cookies.get("sb-access-token")
+    if token:
+        try:
+            # Sign out from Supabase to invalidate session
+            supabase_anon.auth.sign_out()
+        except Exception:
+            logging.exception("Failed to sign out from Supabase")
+
     res = make_response(jsonify({"msg": "ok"}))
     res.set_cookie("sb-access-token", "", expires=0, path="/")
     res.set_cookie("sb-refresh-token", "", expires=0, path="/")

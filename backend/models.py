@@ -15,11 +15,11 @@ class User(Base):
 class Note(Base):
     __tablename__ = "notes"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey('auth.users.id'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('auth.users.id', ondelete="CASCADE"), nullable=False)
     title = Column(Text)
     content = Column(Text)
     last_modified = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     is_synced = Column(Boolean, default=False, nullable=False)
-    is_deleted = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     user = relationship("User", back_populates="notes")
