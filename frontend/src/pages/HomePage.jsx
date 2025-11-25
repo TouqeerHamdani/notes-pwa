@@ -1,20 +1,22 @@
 import React from "react";
-import { SignOutButton, UserButton } from '@clerk/clerk-react';
-import { useClerk } from '@clerk/clerk-react';
+import supabase from "../lib/supabaseClient";
+import { useNavigate } from "react-router-dom";
 
-const HomePage = () => {
-  const { user } = useClerk();
+function HomePage() {
+  const navigate = useNavigate();
 
-  console.log(user);
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    navigate("/login");
+  };
 
   return (
     <div>
-      <h1>Welcome to your dashboard {user.firstName}</h1>
-      <UserButton />
-
-      <SignOutButton  />
+      <h1>Hello, you are logged in.</h1>
+      <button onClick={signOut}>Sign out</button>
     </div>
   );
-};
+}
 
 export default HomePage;
