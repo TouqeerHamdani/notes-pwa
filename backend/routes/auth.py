@@ -12,7 +12,8 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")  # Add this for public APIs like login
+# Add this for public APIs like login
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 ENV = os.getenv("FLASK_ENV", "development")
 client_id = os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID")
@@ -21,13 +22,14 @@ secret = os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET")
 if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
 if not SUPABASE_ANON_KEY:
-        logging.error("SUPABASE_ANON_KEY not configured")
+    logging.error("SUPABASE_ANON_KEY not configured")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 supabase_anon: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 auth_bp = Blueprint("auth", __name__)
 
 _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
 
 def is_valid_email(email):
     return bool(email and _email_re.match(email))
@@ -55,7 +57,8 @@ def user_required(f):
 
         try:
             # Supabase tokens are HS256 signed by the project's JWT secret when using the default config
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[
+                                 "HS256"], audience="authenticated")
             user_id = payload.get("sub")
             email = payload.get("email")
             if not user_id:
@@ -92,7 +95,7 @@ def register():
         return jsonify({"msg": "Server misconfiguration"}), 500
 
     try:
-        resp = supabase.auth.admin.create_user({"email": email, "password": password})
+        resp = supabase.auth.sign_up({"email": email, "password": password})
     except AuthApiError as e:
         if "already been registered" in e.message:
             return jsonify({"msg": "A user with this email address has already been registered"}), 409
@@ -105,6 +108,7 @@ def register():
 
     return jsonify({"id": sup_user.id, "email": sup_user.email}), 201
 
+
 @auth_bp.route("/google_oauth", methods=["POST"])
 def google_oauth():
     """Sign in via Supabase Google OAuth endpoint """
@@ -116,13 +120,14 @@ def google_oauth():
     if not SUPABASE_ANON_KEY:
         logging.error("SUPABASE_ANON_KEY not configured")
         return jsonify({"msg": "Server misconfiguration"}), 500
-    
+
     try:
         resp = supabase_anon.auth.sign_in_with_oauth({"provider": "google"})
     except AuthApiError as e:
         return jsonify({"msg": "Invalid credentials", "detail": e.message}), 401
 
     return jsonify({"url": resp.url}), 200
+
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
@@ -144,15 +149,15 @@ def login():
         logging.error("SUPABASE_ANON_KEY not configured")
         return jsonify({"msg": "Server misconfiguration"}), 500
 
-
     try:
-        resp = supabase_anon.auth.sign_in_with_password({"email": email, "password": password})
+        resp = supabase_anon.auth.sign_in_with_password(
+            {"email": email, "password": password})
     except AuthApiError as e:
         return jsonify({"msg": "Invalid credentials", "detail": e.message}), 401
-    
+
     if not resp.session:
         return jsonify({"msg": "No session returned"}), 500
-    
+
     access_token = resp.session.access_token
     refresh_token = resp.session.refresh_token
 
@@ -162,11 +167,14 @@ def login():
     # Supabase default access token expires in 3600 seconds (1 hour)
     # Refresh token typically expires in 7 days
     if access_token:
-        res.set_cookie("sb-access-token", access_token, httponly=True, secure=secure_flag, samesite="Lax", path="/", max_age=3600)
+        res.set_cookie("sb-access-token", access_token, httponly=True,
+                       secure=secure_flag, samesite="Lax", path="/", max_age=3600)
     if refresh_token:
-        res.set_cookie("sb-refresh-token", refresh_token, httponly=True, secure=secure_flag, samesite="Lax", path="/", max_age=604800)
+        res.set_cookie("sb-refresh-token", refresh_token, httponly=True,
+                       secure=secure_flag, samesite="Lax", path="/", max_age=604800)
 
     return res
+
 
 @auth_bp.route("/logout", methods=["POST"])
 @user_required

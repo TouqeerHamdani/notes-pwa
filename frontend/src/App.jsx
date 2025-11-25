@@ -1,79 +1,24 @@
-import {
-  Route,
-  Routes,
-} from 'react-router-dom';
+import { Navigate, Route, Routes } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
+import SignUpPage from "./pages/SignUpPage";
+import { useAuth } from "./hooks/useAuth";
 
-import LoginPage from './pages/LoginPage.jsx';
-import HomePage from './pages/HomePage.jsx';
-import Navbar from './components/Navbar.jsx';
-import logo from './assets/react.svg';
-
-
-import { RedirectToSignIn, SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
-import React from "react";
-
-function App() {
-  const { isSignedIn } = useAuth();
-
-  if (!isSignedIn) {
-    return (
-
-      <div>
-        {/* <Navbar
-          logo={logo}
-          logoAlt="Company Logo"
-          items={[
-            { label: 'Home', href: '/home' },
-            { label: 'Login', href: '/' },
-            { label: 'Services', href: '/services' },
-            { label: 'Contact', href: '/contact' }
-          ]}
-          activeHref="/"
-          className="custom-nav"
-          ease="power2.easeOut"
-          baseColor="#000000"
-          pillColor="#ffffff"
-          hoveredPillTextColor="#ffffff"
-          pillTextColor="#000000"
-        /> */}
-
-        <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route path="/home" element={<HomePage />} />
-        </Routes>
-
-      </div>
-  );
-  }
+const App = () => {
+  const { authenticated } = useAuth();
 
   return (
-    <div>
-
-      {/* <Navbar
-        logo={logo}
-        logoAlt="Company Logo"
-        items={[
-          { label: 'Home', href: '/' },
-          { label: 'Login', href: '/login' },
-          { label: 'Services', href: '/services' },
-          { label: 'Contact', href: '/contact' }
-        ]}
-        activeHref="/"
-        className="custom-nav"
-        ease="power2.easeOut"
-        baseColor="#000000"
-        pillColor="#ffffff"
-        hoveredPillTextColor="#ffffff"
-        pillTextColor="#000000"
-      /> */}
-
+    <>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-      </Routes>
+        <Route path="/" element={authenticated ? <HomePage /> : <Navigate to={"/login"} replace />} />
+        <Route path="/login" element={!authenticated ? <LoginPage /> : <Navigate to={"/"} replace />} />
+        <Route path="/signup" element={<SignUpPage />} />
 
-      </div>
-  );
-}
+        <Route path="*" element={authenticated ? <Navigate to={"/"} replace /> : <Navigate to={"/login"} replace />} />
+      </Routes>
+    
+    </>
+  )
+};
 
 export default App;
