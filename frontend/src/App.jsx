@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import SignUpPage from "./pages/SignUpPage";
+import AuthPage from "./pages/AuthPage";
 import { useAuth } from "./hooks/useAuth";
 
 const App = () => {
@@ -10,11 +9,11 @@ const App = () => {
   return (
     <>
       <Routes>
-        <Route path="/" element={authenticated ? <HomePage /> : <Navigate to={"/login"} replace />} />
-        <Route path="/login" element={!authenticated ? <LoginPage /> : <Navigate to={"/"} replace />} />
-        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/" element={authenticated ? <HomePage /> : <Navigate to={"/auth"} replace />} />
+        <Route path="/auth" element={!authenticated ? <AuthPage /> : <Navigate to={"/"} replace />} />
 
-        <Route path="*" element={authenticated ? <Navigate to={"/"} replace /> : <Navigate to={"/login"} replace />} />
+        
+        <Route path="*" element={authenticated ? <Navigate to={"/"} replace /> : <Navigate to={"/auth"} replace />} />
       </Routes>
     
     </>
