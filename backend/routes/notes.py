@@ -163,3 +163,58 @@ def delete_note(current_user, note_id):
         }), 500
     finally:
         db.close()
+@notes.route("/sync", methods=["POST"])
+@user_required
+def sync_notes(current_user):
+    """Sync notes between client and server (batch upsert and fetch)."""
+    data = request.get_json()
+    client_notes = data.get("notes", [])
+    last_sync = data.get("last_sync_timestamp")
+    updated_notes = []
+    db = SessionLocal()
+    try:
+        # Upsert each note from client
+        for note_data in client_notes:
+            note_id = note_data.get("id")
+            content = note_data.get("content", "")
+            last_modified = note_data.get("last_modified")
+            is_deleted = note_data.get("is_deleted", False)
+            if not note_id or not last_modified:
+                continue  # skip invalid
+            note = db.query(Note).filter_by(id=note_id, user_id=current_user.id).first()
+            if note:
+                # Only update if client is newer
+                if str(note.last_modified) < last_modified:
+                    note.content = content
+                    note.last_modified = last_modified
+                    note.is_deleted = is_deleted
+                    db.add(note)
+            else:
+                # Create new note
+                db.add(Note(id=note_id, user_id=current_user.id, content=content, last_modified=last_modified, is_deleted=is_deleted))
+        db.commit()
+        # Fetch notes changed since last sync
+        query = db.query(Note).filter(Note.user_id == current_user.id)
+        if last_sync:
+            query = query.filter(Note.last_modified > last_sync)
+        updated_notes = [
+            {
+                "id": str(n.id),
+                "content": n.content,
+                "last_modified": n.last_modified.isoformat(),
+                "created_at": n.created_at.isoformat(),
+                "is_deleted": n.is_deleted            }
+            for n in query.all()
+        ]
+        return jsonify({
+            "success": True,
+            "notes": updated_notes,
+            "message": "Sync successful"
+        })
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.exception("Error during sync")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+    finally:
+         db.close()

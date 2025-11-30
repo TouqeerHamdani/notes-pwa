@@ -1,4 +1,4 @@
-from flask import Flask, app
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
@@ -27,6 +27,11 @@ def create_app():
     @app.route("/")
     def index():
         return "<h1>Welcome to the Notes PWA Backend!</h1>"
+
+    # Health endpoint for load balancers / CI smoke checks
+    @app.route("/health")
+    def health():
+        return jsonify({"status": "ok"}), 200
 
     # Import and register blueprints
     from .routes.auth import auth_bp
