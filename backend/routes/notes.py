@@ -66,12 +66,13 @@ def create_note(user):
             "success": True,
             "data": {
                 "id": str(note.id),
+                "title": note.title,
                 "content": note.content,
                 "last_modified": note.last_modified.isoformat(),
                 "created_at": note.created_at.isoformat(),
                 "is_deleted": note.is_deleted
             }
-        }), 201
+        }), 201    
     except Exception as e:
         db.rollback()
         logging.exception("Error creating note")
@@ -94,12 +95,12 @@ def update_note(user, note_id):
     try:
         note = db.query(Note).filter(
             Note.id == note_id,
-            Note.user_id == user["id"]  
+            Note.user_id == user["id"],
+            Note.is_deleted.is_(False)
         ).first()
 
         if not note:
             return jsonify({"success": False, "message": "Note not found"}), 404
-
         note.content = content
         note.last_modified = datetime.now(timezone.utc)
         db.commit()

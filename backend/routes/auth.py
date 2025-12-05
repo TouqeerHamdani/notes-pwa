@@ -134,8 +134,7 @@ def login():
         return jsonify({"msg": "Invalid credentials", "detail": str(e)}), 401
 
     if not resp.session:
-        return jsonify({"msg": "No session returned", "detail": str(e)}), 500
-
+        return jsonify({"msg": "No session returned"}), 500
     access_token = resp.session.access_token
     refresh_token = resp.session.refresh_token
 
