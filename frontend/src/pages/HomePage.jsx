@@ -1,22 +1,27 @@
-import { useNavigate } from "react-router-dom";
-import supabase from "../lib/supabaseClient";
+import NoteList from '../components/NoteList';
+import AddNotes from '../components/AddNotes';
+import { getUserId } from '../hooks/useAuth';
+import { useState, useCallback } from "react";
+import Logout from '../components/Logout';
 
 function HomePage() {
-  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState(-1);
+  const [newCreated, setNewCreated] = useState(false);
+  const userId = getUserId();
 
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Error signing out:", error.message);
-      return;
-    }
-    navigate("/login");
+  const handleUserClick = useCallback((id) => {
+    setSelectedId(id);
+  }, []);
+
+  const handleCreateItem = () => {
+    setNewCreated(!newCreated);
   };
 
   return (
-    <div>
-      <h1>"Hello, you are logged in."</h1>
-      <button onClick={signOut}>Sign out</button>
+    <div className="HomePage flex">
+      <AddNotes />
+      <NoteList />
+      <Logout />
     </div>
   );
 }

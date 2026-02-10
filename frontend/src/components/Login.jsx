@@ -2,6 +2,7 @@ import "../styles/auth.css";
 import supabase from "../lib/supabaseClient";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { login } from "../lib/api";
 
 
 function Login() {
@@ -35,6 +36,9 @@ function Login() {
     } else {
       console.log("Sign in successful!");
     }
+
+    const data = await login(email, password);
+    console.log("Login response data:", data);
     
     setEmail("");
     setPassword("");
