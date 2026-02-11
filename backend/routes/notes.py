@@ -227,3 +227,4 @@ def sync(user):
         return jsonify({"success": False, "message": "Sync failed"}), 500
     finally:
         db.close()
+        
