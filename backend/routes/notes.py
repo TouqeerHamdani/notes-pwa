@@ -15,13 +15,14 @@ def list_notes(user):
     db = SessionLocal()
     try:
         notes_list = db.query(Note).filter(
-            Note.user_id == user["id"]  
+            Note.user_id == user["id"]
         ).filter(Note.is_deleted == False).all()
         return jsonify({
             "success": True,
             "data": [
                 {
                     "id": str(n.id),
+                    "title": n.title,
                     "content": n.content,
                     "last_modified": n.last_modified.isoformat(),
                     "created_at": n.created_at.isoformat(),
@@ -52,7 +53,7 @@ def create_note(user):
     try:
         now = datetime.now(timezone.utc)
         note = Note(
-            user_id=user["id"], 
+            user_id=user["id"],
             title=title,
             content=content,
             last_modified=now,
@@ -72,7 +73,7 @@ def create_note(user):
                 "created_at": note.created_at.isoformat(),
                 "is_deleted": note.is_deleted
             }
-        }), 201    
+        }), 201
     except Exception as e:
         db.rollback()
         logging.exception("Error creating note")
@@ -134,7 +135,7 @@ def delete_note(user, note_id):
     try:
         note = db.query(Note).filter(
             Note.id == note_id,
-            Note.user_id == user["id"]  
+            Note.user_id == user["id"]
         ).first()
 
         if not note:
@@ -176,7 +177,7 @@ def sync(user):
 
             existing = db.query(Note).filter(
                 Note.id == note_id,
-                Note.user_id == user["id"]  
+                Note.user_id == user["id"]
             ).first()
 
             if existing:
@@ -202,9 +203,10 @@ def sync(user):
         db.commit()
 
         # Fetch server changes since last_sync_timestamp
-        query = db.query(Note).filter(Note.user_id == user["id"]) 
+        query = db.query(Note).filter(Note.user_id == user["id"])
         if last_sync_timestamp:
-            query = query.filter(Note.last_modified > datetime.fromisoformat(last_sync_timestamp))
+            query = query.filter(Note.last_modified >
+                                 datetime.fromisoformat(last_sync_timestamp))
 
         server_notes = query.all()
 
