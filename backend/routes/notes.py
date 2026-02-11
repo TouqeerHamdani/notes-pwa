@@ -87,6 +87,8 @@ def update_note(user, note_id):
     """Update a note."""
     data = request.get_json() or {}
     content = data.get("content", "").strip()
+    title = data.get("title", "").strip()
+
 
     if not content:
         return jsonify({"success": False, "message": "Content cannot be empty"}), 400
@@ -164,8 +166,8 @@ def sync(user):
         # Upsert client notes
         for note_data in client_notes:
             note_id = note_data.get("id")
-            title = note_data.get("title", "")
-            content = note_data.get("content", "")
+            title = note_data.get("title", "").strip()            
+            content = note_data.get("content", "").strip()
             last_modified = note_data.get("last_modified")
             is_deleted = note_data.get("is_deleted", False)
 
