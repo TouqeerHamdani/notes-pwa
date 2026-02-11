@@ -164,6 +164,7 @@ def sync(user):
         # Upsert client notes
         for note_data in client_notes:
             note_id = note_data.get("id")
+            title = note_data.get("title", "")
             content = note_data.get("content", "")
             last_modified = note_data.get("last_modified")
             is_deleted = note_data.get("is_deleted", False)
@@ -180,6 +181,7 @@ def sync(user):
                 # Last-write-wins: only update if client's last_modified is newer
                 if last_modified > existing.last_modified.isoformat():
                     existing.content = content
+                    existing.title = title
                     existing.last_modified = datetime.fromisoformat(last_modified)
                     existing.is_deleted = is_deleted
             else:
@@ -187,6 +189,7 @@ def sync(user):
                 note = Note(
                     id=note_id,
                     user_id=user["id"],  
+                    title=title,
                     content=content,
                     last_modified=datetime.fromisoformat(last_modified),
                     created_at=datetime.now(timezone.utc),
@@ -208,6 +211,7 @@ def sync(user):
             "notes": [
                 {
                     "id": str(n.id),
+                    "title": n.title,
                     "content": n.content,
                     "last_modified": n.last_modified.isoformat(),
                     "is_deleted": n.is_deleted
