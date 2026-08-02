@@ -1,1 +1,95 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-canvas: #F9F8F6;
+    --bg-sidebar: #F2F0EB;
+    --bg-card: #FFFFFF;
+    --bg-card-hover: #F6F4EE;
+    --bg-card-active: #EFECE3;
+    --text-main: #1F2023;
+    --text-muted: #71717A;
+    --text-subtle: #A1A1AA;
+    --border-color: #E6E4DF;
+    --border-subtle: #ECEAE4;
+    --accent-sage: #6E8B74;
+    --accent-sage-light: #EBF1EC;
+    --accent-terracotta: #D97706;
+    --accent-terracotta-light: #FEF3C7;
+    --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.04);
+    --shadow-floating: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    --bg-canvas: #121316;
+    --bg-sidebar: #18191D;
+    --bg-card: #1E1F23;
+    --bg-card-hover: #26272D;
+    --bg-card-active: #2D2E35;
+    --text-main: #E4E4E7;
+    --text-muted: #9FA0A7;
+    --text-subtle: #63646C;
+    --border-color: #27272A;
+    --border-subtle: #202125;
+    --accent-sage: #81A187;
+    --accent-sage-light: #1E2820;
+    --accent-terracotta: #F59E0B;
+    --accent-terracotta-light: #2D2415;
+    --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.3);
+    --shadow-floating: 0 12px 36px rgba(0, 0, 0, 0.5);
+  }
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.font-serif-editor {
+  font-family: 'Newsreader', Georgia, Cambria, serif;
+}
+
+.font-mono-editor {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-subtle);
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+}
+.dark .glass-panel {
+  background: rgba(30, 31, 35, 0.85);
+  backdrop-filter: blur(12px);
+}
+
+/* Smooth Focus Mode Transitions */
+.transition-layout {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
