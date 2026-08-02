@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
+from flask_compress import Compress
 from .db import Base, engine
 import os
 from dotenv import load_dotenv
@@ -12,6 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def create_app():
     app = Flask(__name__, instance_relative_config=False)
+    Compress(app)
     jwt_secret = os.getenv("JWT_SECRET")
     if not jwt_secret:
         logging.error("JWT_SECRET environment variable must be set.")
@@ -19,7 +21,8 @@ def create_app():
     app.config["JWT_SECRET_KEY"] = jwt_secret
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = int(
         os.getenv("JWT_ACCESS_EXPIRES", "3600"))
-    CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    CORS(app, supports_credentials=True, origins=[frontend_url])
     jwt = JWTManager(app)
     bcrypt = Bcrypt(app)
 
@@ -34,8 +37,9 @@ def create_app():
         return jsonify({"status": "ok"}), 200
 
     # Import and register blueprints
-    from .routes.auth import auth_bp
+    from .routes.auth import auth_bp, limiter as auth_limiter
     from .routes.notes import notes
+    auth_limiter.init_app(app)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(notes, url_prefix="/api")
 

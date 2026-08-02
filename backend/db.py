@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
@@ -29,6 +30,16 @@ try:
 except Exception as e:
     logging.error(f"Error creating Base declarative class: {e}")
     raise
+
+
+@contextmanager
+def get_db():
+    """Context manager yielding database session and closing in finally block."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     logging.info("Attempting to connect to the database to verify connection...")

@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv()
 
@@ -26,6 +28,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 supabase_anon: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 auth_bp = Blueprint("auth", __name__)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+)
+
 
 _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -75,6 +82,7 @@ def user_required(f):
 
 
 @auth_bp.route("/register", methods=["POST"])
+@limiter.limit("5 per minute")
 def register():
     """Create a Supabase user via the Admin API and return session tokens.
     Expects JSON { email, password }.
@@ -111,6 +119,7 @@ def register():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("5 per minute")
 def login():
     """Sign in via Supabase and set HttpOnly cookies with access and refresh tokens.
     Expects JSON { email, password }.
@@ -172,7 +181,7 @@ def refresh():
         return jsonify({"msg": "Refresh failed", "detail": str(e)}), 401
 
     if not resp.session:
-        return jsonify({"msg": "No session returned", "detail": str(e)}), 500
+        return jsonify({"msg": "No session returned"}), 500
 
     access_token = resp.session.access_token
     new_refresh_token = resp.session.refresh_token
