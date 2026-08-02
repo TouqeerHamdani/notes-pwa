@@ -1,8 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db.js';
-import React from 'react';
-import { Dexie } from 'dexie';
-import { syncNote } from '../lib/api.js';
+import { syncAllNotes } from '../lib/api.js';
 
 export async function createNote(
   id,
@@ -12,10 +9,9 @@ export async function createNote(
   created_at,
   last_modified
 ) {
-    if (!userId) {
-        throw new Error("createNote called without userId");
-    }
-
+  if (!userId) {
+    throw new Error("createNote called without userId");
+  }
 
   try {
     await db.notes.add({
@@ -33,14 +29,13 @@ export async function createNote(
   }
 }
 
-
 export async function deleteNote(id) {
   try {
-      await db.notes.delete(id);
-    } catch (error) {
-        console.error("Failed to delete note: ", error);
-    }
-};
+    await db.notes.delete(id);
+  } catch (error) {
+    console.error("Failed to delete note: ", error);
+  }
+}
 
 function normalizeUserId(userId) {
   if (!userId) return null;
@@ -51,9 +46,8 @@ function normalizeUserId(userId) {
   return null;
 }
 
-
 export async function getUserNotes(rawuserId) {
-    const userId = normalizeUserId(rawuserId);
+  const userId = normalizeUserId(rawuserId);
 
   if (!userId) {
     console.log("getUserNotes called without userId");
@@ -61,9 +55,6 @@ export async function getUserNotes(rawuserId) {
   }
 
   try {
-    await db.notes.toArray();
-    console.log("All notes in DB:", await db.notes.toArray());
-
     return await db.notes
       .where("userId")
       .equals(userId)
@@ -74,49 +65,41 @@ export async function getUserNotes(rawuserId) {
   }
 }
 
-
 export async function getNote(id) {
   try {
-      const notes = useLiveQuery( async () => {
-        const notes = await db.notes
-            .where("id")
-            .equals(id)
-            .toArray()
-
-        return notes
-        },
-        [id]
-    );
-    } catch (error) {
-        console.error("Failed to get note: ", error);
-    }
-};
+    return await db.notes.get(id);
+  } catch (error) {
+    console.error("Failed to get note: ", error);
+    return null;
+  }
+}
 
 export async function updateNote(id, updatedFields) {
   try {
-      await db.notes.update(id, updatedFields);
-    } catch (error) {
-        console.error("Failed to update note: ", error);
-    }
-};
-
-export async function notesList() {
-  const notes = useLiveQuery(() => db.notes.toArray())
-
-  return notes;
-};
+    await db.notes.update(id, updatedFields);
+  } catch (error) {
+    console.error("Failed to update note: ", error);
+  }
+}
 
 export async function syncNotes() {
   try {
-    const notesToSync = await db.notes.toArray();
-    console.log("Notes to sync:", notesToSync);
+    const unsyncedNotes = await db.notes.filter(note => !note.synced).toArray();
+    const lastSyncTimestamp = localStorage.getItem("last_sync_timestamp") || null;
+    const payload = {
+      notes: unsyncedNotes,
+      last_sync_timestamp: lastSyncTimestamp,
+    };
 
-    for (const note of notesToSync) {
-      const response = await syncNote(note);
-      if (response && response.synced) {
+    const response = await syncAllNotes(payload);
+    if (response) {
+      for (const note of unsyncedNotes) {
         await db.notes.update(note.id, { synced: true });
       }
+      const newSyncTimestamp = response.last_sync_timestamp || new Date().toISOString();
+      localStorage.setItem("last_sync_timestamp", newSyncTimestamp);
     }
+    return response;
   } catch (error) {
     console.error("Failed to sync notes:", error);
   }
