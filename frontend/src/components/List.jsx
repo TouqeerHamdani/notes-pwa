@@ -4,7 +4,7 @@ import { db } from '../lib/db.js';
 import { deleteNote, createNote, updateNote } from '../hooks/useDb';
 import { getUserId } from '../hooks/useAuth';
 import { triggerDebouncedSync } from '../lib/syncManager';
-import { FiSearch, FiEdit3, FiTrash2, FiX, FiStar } from 'react-icons/fi';
+import { FiSearch, FiEdit3, FiTrash2, FiX, FiStar, FiMenu } from 'react-icons/fi';
 import { LuPin } from 'react-icons/lu';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -13,7 +13,8 @@ const List = ({
   onUserClick,
   onNoteCreated,
   selectedFolder = 'notes',
-  selectedTag = null
+  selectedTag = null,
+  onOpenFolders
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -131,7 +132,18 @@ const List = ({
       {/* List Panel Header */}
       <div className="p-3.5 border-b border-[var(--border-color)] space-y-2 bg-[var(--bg-canvas)]">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-base tracking-tight">{getHeaderTitle()}</h2>
+          <div className="flex items-center gap-2">
+            {onOpenFolders && (
+              <button
+                onClick={onOpenFolders}
+                className="md:hidden p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-subtle)]"
+                title="Open Sidebar"
+              >
+                <FiMenu className="text-base" />
+              </button>
+            )}
+            <h2 className="font-bold text-base tracking-tight">{getHeaderTitle()}</h2>
+          </div>
           <button
             onClick={handleCreateNote}
             className="p-1.5 rounded-xl bg-[var(--accent-terracotta-light)] text-[var(--accent-terracotta)] hover:opacity-90 transition cursor-pointer"

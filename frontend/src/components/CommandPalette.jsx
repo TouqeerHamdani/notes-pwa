@@ -20,6 +20,7 @@ import { logout } from '../lib/api';
 const CommandPalette = ({
   isOpen,
   onClose,
+  onToggle,
   onSelectNote,
   onCreateNote,
   onToggleTheme,
@@ -48,8 +49,11 @@ const CommandPalette = ({
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        if (isOpen) onClose();
-        else onClose(false); // toggle trigger outside
+        if (onToggle) {
+          onToggle();
+        } else if (isOpen) {
+          onClose();
+        }
       }
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -57,7 +61,7 @@ const CommandPalette = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, onToggle]);
 
   if (!isOpen) return null;
 

@@ -60,8 +60,8 @@ function HomePage() {
         >
           <Folder
             selectedFolder={selectedFolder}
-            onSelectFolder={(folderId) => {
-              setSelectedFolder(folderId);
+            onSelectFolder={(folder) => {
+              setSelectedFolder(folder);
               setSelectedTag(null);
               setMobileView('list');
             }}
@@ -70,8 +70,6 @@ function HomePage() {
               setSelectedTag(tag);
               setMobileView('list');
             }}
-            onNewNote={handleCreateNewNote}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
             theme={theme}
             onToggleTheme={toggleTheme}
           />
@@ -96,6 +94,7 @@ function HomePage() {
             }}
             selectedFolder={selectedFolder}
             selectedTag={selectedTag}
+            onOpenFolders={() => setMobileView('folders')}
           />
         </div>
       )}
@@ -123,6 +122,7 @@ function HomePage() {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
+        onToggle={() => setIsCommandPaletteOpen((prev) => !prev)}
         onSelectNote={handleSelectNote}
         onCreateNote={handleCreateNewNote}
         onToggleTheme={toggleTheme}

@@ -212,7 +212,8 @@
   margin: 20px 0;
 }
 
-.AuthPage .social-container a {
+.AuthPage .social-container a,
+.AuthPage .social-container button.social {
   border: 1px solid #dddddd;
   border-radius: 50%;
   display: inline-flex;
@@ -221,5 +222,8 @@
   margin: 0 5px;
   height: 40px;
   width: 40px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
 }
 
