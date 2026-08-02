@@ -13,9 +13,9 @@ export async function login(email, password) {
   }
 }
 
-export async function register(username, password) {
+export async function register(email, password) {
   try {
-    const response = await axiosInstance.post('/auth/register', { username, password });
+    const response = await axiosInstance.post('/auth/register', { email, password });
     return response.data;
   } catch (error) {
     console.error("Registration failed:", error);
@@ -45,7 +45,7 @@ export async function fetchUserNotes() {
 
 export async function syncAllNotes(data) {
   try {
-    const response = await axiosInstance.post('/api/notes/sync', data);
+    const response = await axiosInstance.post('/api/sync', data);
     return response.data;
   } catch (error) {
     console.error("Failed to sync notes:", error);

@@ -1,24 +1,25 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
 
 export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  
-  const getSession = () => {
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN") {
-        setAuthenticated(true);
-        setLoading(false);
-      } else if (event === "SIGNED_OUT") {
-        setAuthenticated(false);
-        setLoading(false);
-      }
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthenticated(!!session);
+      setLoading(false);
     });
-  };
 
-    getSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(!!session);
+      setLoading(false);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   return { authenticated, loading };
 }
@@ -26,5 +27,5 @@ export function useAuth() {
 export async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser();
   console.log("User ID:", user ? user.id : "No user");
-  return user.id || null;
+  return user ? user.id : null;
 };
