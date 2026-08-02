@@ -28,7 +28,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 supabase_anon: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 auth_bp = Blueprint("auth", __name__)
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://")
+)
+
 
 _email_re = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

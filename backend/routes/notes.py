@@ -22,27 +22,40 @@ def parse_uuid(val):
     return None
 
 
+def parse_iso_datetime(dt_str):
+    """Safely parse ISO datetime strings, handling 'Z' suffix and enforcing timezone awareness."""
+    if not dt_str:
+        return None
+    try:
+        clean_str = dt_str.strip()
+        if clean_str.endswith("Z"):
+            clean_str = clean_str[:-1] + "+00:00"
+        dt = datetime.fromisoformat(clean_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def ensure_tz_aware(dt):
+    """Ensure a datetime object is timezone aware (default UTC)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 @notes.route("/notes", methods=["GET"])
 @user_required
 def list_notes(user):
-    """List all notes for the authenticated user."""
+    """List notes for the authenticated user (supports optional pagination)."""
     user_id = parse_uuid(user.get("id"))
     if not user_id:
         return jsonify({"success": False, "message": "Invalid user ID"}), 400
 
-    try:
-        page = int(request.args.get("page", 1))
-        if page < 1:
-            page = 1
-    except (ValueError, TypeError):
-        page = 1
-
-    try:
-        per_page = int(request.args.get("per_page", 50))
-        if per_page < 1:
-            per_page = 50
-    except (ValueError, TypeError):
-        per_page = 50
+    has_page_param = "page" in request.args
 
     db = SessionLocal()
     try:
@@ -51,6 +64,39 @@ def list_notes(user):
             Note.is_deleted.is_(False)
         )
         total = base_query.count()
+
+        if not has_page_param:
+            # Unpaginated fallback for legacy clients expecting full note list
+            notes_list = base_query.all()
+            return jsonify({
+                "success": True,
+                "data": [
+                    {
+                        "id": str(n.id),
+                        "title": n.title,
+                        "content": n.content,
+                        "last_modified": n.last_modified.isoformat(),
+                        "created_at": n.created_at.isoformat(),
+                        "is_deleted": n.is_deleted
+                    }
+                    for n in notes_list
+                ],
+                "total": total
+            }), 200
+
+        try:
+            page = int(request.args.get("page", 1))
+            if page < 1:
+                page = 1
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            per_page = int(request.args.get("per_page", 50))
+            per_page = min(max(1, per_page), 100)  # Bound per_page between 1 and 100
+        except (ValueError, TypeError):
+            per_page = 50
+
         notes_list = base_query.offset((page - 1) * per_page).limit(per_page).all()
         total_pages = (total + per_page - 1) // per_page if total > 0 else 0
 
@@ -237,9 +283,8 @@ def sync(user):
             if not note_uuid or not raw_modified:
                 continue
 
-            try:
-                client_dt = datetime.fromisoformat(raw_modified)
-            except ValueError:
+            client_dt = parse_iso_datetime(raw_modified)
+            if not client_dt:
                 continue
 
             existing = db.query(Note).filter(
@@ -248,8 +293,9 @@ def sync(user):
             ).first()
 
             if existing:
-                # Last-write-wins: only update if client's last_modified is newer (parsed datetime comparison)
-                if client_dt > existing.last_modified:
+                # Last-write-wins: compare timezone-aware datetimes safely
+                existing_last_mod = ensure_tz_aware(existing.last_modified)
+                if client_dt > existing_last_mod:
                     existing.content = content
                     existing.title = title
                     existing.last_modified = client_dt
@@ -272,11 +318,9 @@ def sync(user):
         # Fetch server changes since last_sync_timestamp
         query = db.query(Note).filter(Note.user_id == user_id)
         if last_sync_timestamp:
-            try:
-                sync_dt = datetime.fromisoformat(last_sync_timestamp)
+            sync_dt = parse_iso_datetime(last_sync_timestamp)
+            if sync_dt:
                 query = query.filter(Note.last_modified > sync_dt)
-            except ValueError:
-                pass
 
         server_notes = query.all()
 

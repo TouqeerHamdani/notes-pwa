@@ -41,7 +41,8 @@ def setup_logging(log_filename="app.log", log_level=logging.INFO, max_bytes=10_4
         logger.addHandler(file_handler)
 
     has_console_handler = any(
-        type(h) is logging.StreamHandler for h in logger.handlers
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+        for h in logger.handlers
     )
     if not has_console_handler:
         console_handler = logging.StreamHandler()
