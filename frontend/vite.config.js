@@ -45,9 +45,9 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-icons': ['react-icons', 'lucide-react'],
+          'vendor-icons': ['react-icons'],
           'vendor-db': ['dexie', 'dexie-react-hooks', '@supabase/supabase-js'],
-          'vendor-utils': ['axios', 'gsap', 'uuid']
+          'vendor-utils': ['axios', 'uuid']
         }
       }
     }
