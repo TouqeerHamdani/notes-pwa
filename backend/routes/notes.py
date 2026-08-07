@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from ..models import Note
 from ..db import SessionLocal
-from .auth import user_required
+from .auth import user_required, limiter
 
 notes = Blueprint("notes", __name__)
 
@@ -125,8 +125,14 @@ def list_notes(user):
         db.close()
 
 
+MAX_BATCH_SIZE = 100
+MAX_TITLE_LENGTH = 500
+MAX_CONTENT_LENGTH = 1_000_000
+
+
 @notes.route("/notes", methods=["POST"])
 @user_required
+@limiter.limit("30 per minute")
 def create_note(user):
     """Create a new note."""
     user_id = parse_uuid(user.get("id"))
@@ -139,6 +145,10 @@ def create_note(user):
 
     if not content:
         return jsonify({"success": False, "message": "Content cannot be empty"}), 400
+    if len(title) > MAX_TITLE_LENGTH:
+        return jsonify({"success": False, "message": f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters"}), 400
+    if len(content) > MAX_CONTENT_LENGTH:
+        return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
 
     db = SessionLocal()
     try:
@@ -175,6 +185,7 @@ def create_note(user):
 
 @notes.route("/notes/<note_id>", methods=["PUT"])
 @user_required
+@limiter.limit("30 per minute")
 def update_note(user, note_id):
     """Update a note."""
     user_id = parse_uuid(user.get("id"))
@@ -188,6 +199,10 @@ def update_note(user, note_id):
 
     if not content:
         return jsonify({"success": False, "message": "Content cannot be empty"}), 400
+    if len(title) > MAX_TITLE_LENGTH:
+        return jsonify({"success": False, "message": f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters"}), 400
+    if len(content) > MAX_CONTENT_LENGTH:
+        return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
 
     db = SessionLocal()
     try:
@@ -227,6 +242,7 @@ def update_note(user, note_id):
 
 @notes.route("/notes/<note_id>", methods=["DELETE"])
 @user_required
+@limiter.limit("30 per minute")
 def delete_note(user, note_id):
     """Soft delete a note."""
     user_id = parse_uuid(user.get("id"))
@@ -259,6 +275,7 @@ def delete_note(user, note_id):
 
 @notes.route("/sync", methods=["POST"])
 @user_required
+@limiter.limit("10 per minute")
 def sync(user):
     """Sync notes: client sends local changes, server returns server changes since last_sync_timestamp."""
     user_id = parse_uuid(user.get("id"))
@@ -269,16 +286,28 @@ def sync(user):
     client_notes = data.get("notes", [])
     last_sync_timestamp = data.get("last_sync_timestamp")
 
+    if not isinstance(client_notes, list):
+        return jsonify({"success": False, "message": "Invalid notes format"}), 400
+
+    if len(client_notes) > MAX_BATCH_SIZE:
+        return jsonify({
+            "success": False,
+            "message": f"Batch size exceeds maximum limit of {MAX_BATCH_SIZE} notes"
+        }), 400
+
     db = SessionLocal()
     try:
         # Upsert client notes
         for note_data in client_notes:
+            if not isinstance(note_data, dict):
+                continue
+
             raw_id = note_data.get("id")
             note_uuid = parse_uuid(raw_id)
-            title = note_data.get("title", "").strip()
-            content = note_data.get("content", "").strip()
+            title = (note_data.get("title") or "").strip()[:MAX_TITLE_LENGTH]
+            content = (note_data.get("content") or "").strip()[:MAX_CONTENT_LENGTH]
             raw_modified = note_data.get("last_modified")
-            is_deleted = note_data.get("is_deleted", False)
+            is_deleted = bool(note_data.get("is_deleted", False))
 
             if not note_uuid or not raw_modified:
                 continue

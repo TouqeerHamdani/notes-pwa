@@ -1,7 +1,5 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
-from flask_bcrypt import Bcrypt
 from flask_compress import Compress
 from .db import Base, engine
 import os
@@ -13,18 +11,27 @@ logging.basicConfig(level=logging.DEBUG)
 
 def create_app():
     app = Flask(__name__, instance_relative_config=False)
+    app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB max request size
+
     Compress(app)
-    jwt_secret = os.getenv("JWT_SECRET")
-    if not jwt_secret:
-        logging.error("JWT_SECRET environment variable must be set.")
-        raise ValueError("JWT_SECRET environment variable must be set")
-    app.config["JWT_SECRET_KEY"] = jwt_secret
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = int(
-        os.getenv("JWT_ACCESS_EXPIRES", "3600"))
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     CORS(app, supports_credentials=True, origins=[frontend_url])
-    jwt = JWTManager(app)
-    bcrypt = Bcrypt(app)
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co;"
+        )
+        return response
+
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        return jsonify({"success": False, "message": "Payload size exceeds 10MB limit"}), 413
 
     # Add a simple index route to confirm the app is running
     @app.route("/")

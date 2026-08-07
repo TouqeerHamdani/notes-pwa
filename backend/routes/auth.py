@@ -88,15 +88,19 @@ def register():
     Expects JSON { email, password }.
     Requires SUPABASE_SERVICE_ROLE_KEY set in env.
     """
+    client_ip = request.remote_addr
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
 
     if not email or not password:
+        logging.warning(f"SECURITY_EVENT: registration_failed_missing_fields ip={client_ip}")
         return jsonify({"msg": "Missing email or password"}), 400
     if not is_valid_email(email):
+        logging.warning(f"SECURITY_EVENT: registration_failed_invalid_email email={email} ip={client_ip}")
         return jsonify({"msg": "Invalid email format"}), 400
     if len(password) < 8:
+        logging.warning(f"SECURITY_EVENT: registration_failed_short_password email={email} ip={client_ip}")
         return jsonify({"msg": "Password must be at least 8 characters"}), 400
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -107,14 +111,17 @@ def register():
         resp = supabase_anon.auth.sign_up({"email": email, "password": password})
     except AuthApiError as e:
         if "already been registered" in str(e):
+            logging.warning(f"SECURITY_EVENT: registration_failed_duplicate_email email={email} ip={client_ip}")
             return jsonify({"msg": "A user with this email address has already been registered"}), 409
-        logging.exception("Supabase admin user creation failed")
-        return jsonify({"msg": "Upstream error", "detail": str(e)}), 502
+        logging.exception(f"Supabase admin user creation failed for email={email}")
+        return jsonify({"msg": "Registration failed"}), 502
 
     sup_user = resp.user
     if not sup_user or not sup_user.id:
-        return jsonify({"msg": "Supabase did not return user id"}), 500
+        logging.error(f"Supabase did not return user id for email={email}")
+        return jsonify({"msg": "Registration processing error"}), 500
 
+    logging.info(f"SECURITY_EVENT: user_registered user_id={sup_user.id} email={sup_user.email} ip={client_ip}")
     return jsonify({"id": str(sup_user.id), "email": sup_user.email}), 201
 
 
@@ -124,11 +131,13 @@ def login():
     """Sign in via Supabase and set HttpOnly cookies with access and refresh tokens.
     Expects JSON { email, password }.
     """
+    client_ip = request.remote_addr
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
 
     if not email or not password:
+        logging.warning(f"SECURITY_EVENT: login_failed_missing_fields ip={client_ip}")
         return jsonify({"msg": "Missing email or password"}), 400
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -140,12 +149,16 @@ def login():
             {"email": email, "password": password}
         )
     except AuthApiError as e:
-        return jsonify({"msg": "Invalid credentials", "detail": str(e)}), 401
+        logging.warning(f"SECURITY_EVENT: login_failed_invalid_credentials email={email} ip={client_ip}")
+        return jsonify({"msg": "Invalid credentials"}), 401
 
     if not resp.session:
-        return jsonify({"msg": "No session returned"}), 500
+        logging.error(f"No session returned for login email={email}")
+        return jsonify({"msg": "Authentication failed"}), 500
     access_token = resp.session.access_token
     refresh_token = resp.session.refresh_token
+
+    logging.info(f"SECURITY_EVENT: user_login_success email={email} ip={client_ip}")
 
     # Set HttpOnly cookies
     res = make_response(jsonify({"msg": "ok"}))
@@ -162,13 +175,16 @@ def login():
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@limiter.limit("10 per minute")
 def refresh():
     """Refresh the access token using the refresh token cookie.
     Called when access token expires (frontend can hook into 401 responses).
     """
+    client_ip = request.remote_addr
     refresh_token = request.cookies.get("sb-refresh-token")
     
     if not refresh_token:
+        logging.warning(f"SECURITY_EVENT: token_refresh_failed_missing_cookie ip={client_ip}")
         return jsonify({"msg": "Missing refresh token"}), 401
 
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -178,13 +194,16 @@ def refresh():
     try:
         resp = supabase_anon.auth.refresh_session(refresh_token)
     except AuthApiError as e:
-        return jsonify({"msg": "Refresh failed", "detail": str(e)}), 401
+        logging.warning(f"SECURITY_EVENT: token_refresh_failed_invalid_token ip={client_ip}")
+        return jsonify({"msg": "Refresh failed"}), 401
 
     if not resp.session:
         return jsonify({"msg": "No session returned"}), 500
 
     access_token = resp.session.access_token
     new_refresh_token = resp.session.refresh_token
+
+    logging.info(f"SECURITY_EVENT: token_refresh_success ip={client_ip}")
 
     res = make_response(jsonify({"msg": "ok"}))
     secure_flag = ENV == "production"
@@ -214,6 +233,8 @@ def me(user):
 @user_required
 def logout(user):
     """Clear auth cookies to log out the user."""
+    client_ip = request.remote_addr
+    logging.info(f"SECURITY_EVENT: user_logout user_id={user.get('id')} ip={client_ip}")
     res = make_response(jsonify({"msg": "ok"}))
     res.set_cookie("sb-access-token", "", expires=0, path="/")
     res.set_cookie("sb-refresh-token", "", expires=0, path="/")
@@ -221,8 +242,10 @@ def logout(user):
 
 
 @auth_bp.route("/google_oauth", methods=["POST"])
+@limiter.limit("5 per minute")
 def google_oauth():
     """Initiate Google OAuth flow via Supabase."""
+    client_ip = request.remote_addr
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         logging.error("Supabase not configured")
         return jsonify({"msg": "Server misconfiguration"}), 500
@@ -230,7 +253,8 @@ def google_oauth():
     try:
         resp = supabase_anon.auth.sign_in_with_oauth({"provider": "google"})
     except AuthApiError as e:
-        logging.exception("Google OAuth failed")
-        return jsonify({"msg": "OAuth error", "detail": str(e)}), 500
+        logging.exception(f"Google OAuth failed ip={client_ip}")
+        return jsonify({"msg": "OAuth error"}), 500
 
+    logging.info(f"SECURITY_EVENT: google_oauth_initiated ip={client_ip}")
     return jsonify({"url": resp.url}), 200
