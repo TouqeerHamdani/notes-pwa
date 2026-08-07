@@ -50,7 +50,6 @@ export async function getUserNotes(rawuserId) {
   const userId = normalizeUserId(rawuserId);
 
   if (!userId) {
-    console.log("getUserNotes called without userId");
     return [];
   }
 

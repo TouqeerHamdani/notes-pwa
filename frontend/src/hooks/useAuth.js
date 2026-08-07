@@ -26,6 +26,5 @@ export function useAuth() {
 
 export async function getUserId() {
   const { data: { user } } = await supabase.auth.getUser();
-  console.log("User ID:", user ? user.id : "No user");
   return user ? user.id : null;
-};
+}
