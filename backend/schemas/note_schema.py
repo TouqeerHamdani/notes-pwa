@@ -45,6 +45,7 @@ class NoteItem(BaseModel):
     content: str = Field(default="", max_length=1_000_000)
     last_modified: datetime
     is_deleted: bool = False
+    version: Optional[int] = 1
 
 class NoteSyncBatch(BaseModel):
     notes: List[NoteItem] = Field(max_items=100)

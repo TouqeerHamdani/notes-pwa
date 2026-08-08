@@ -13,13 +13,14 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is required but not set")
 
 try:
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30
-    )
+    engine_kwargs = {"pool_pre_ping": True}
+    if DATABASE_URL.startswith("postgresql") or DATABASE_URL.startswith("mysql"):
+        engine_kwargs.update({
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_timeout": 30
+        })
+    engine = create_engine(DATABASE_URL, **engine_kwargs)
     logging.debug("Database engine created successfully.")
 except Exception as e:
     logging.error(f"Error creating database engine: {e}")

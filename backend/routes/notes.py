@@ -327,14 +327,15 @@ def sync(user):
 
     idempotency_key = request.headers.get("Idempotency-Key")
     now_ts = time.time()
+    cache_key = f"{user_id}:{idempotency_key}" if idempotency_key else None
     
-    if idempotency_key:
-        if idempotency_key in IDEMPOTENCY_CACHE:
-            resp_data, status_code, timestamp = IDEMPOTENCY_CACHE[idempotency_key]
+    if cache_key:
+        if cache_key in IDEMPOTENCY_CACHE:
+            resp_data, status_code, timestamp = IDEMPOTENCY_CACHE[cache_key]
             if now_ts - timestamp < 86400:
                 return jsonify(resp_data), status_code
             else:
-                del IDEMPOTENCY_CACHE[idempotency_key]
+                del IDEMPOTENCY_CACHE[cache_key]
 
     data = request.get_json() or {}
     
@@ -379,8 +380,8 @@ def sync(user):
             "server_timestamp": datetime.now(timezone.utc).isoformat()
         }
         
-        if idempotency_key:
-            IDEMPOTENCY_CACHE[idempotency_key] = (response_data, 200, time.time())
+        if cache_key:
+            IDEMPOTENCY_CACHE[cache_key] = (response_data, 200, time.time())
             
         return jsonify(response_data), 200
     except Exception as e:
