@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { subscribeSyncStatus, getSyncStatus } from '../lib/syncManager';
 
 export function useSyncStatus() {
-  const [status, setStatus] = useState(getSyncStatus());
+  const [syncState, setSyncState] = useState(getSyncStatus());
 
   useEffect(() => {
-    return subscribeSyncStatus(setStatus);
+    return subscribeSyncStatus(setSyncState);
   }, []);
 
-  return status;
+  return syncState;
 }
