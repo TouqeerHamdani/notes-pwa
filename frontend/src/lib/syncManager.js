@@ -82,7 +82,7 @@ export async function syncNotes() {
       await db.transaction('rw', db.notes, db.syncOutbox, async () => {
         for (const note of dirtyNotes) {
            const updatedNote = await db.notes.get(note.id);
-           if (updatedNote && updatedNote.is_dirty === 1) {
+           if (updatedNote && updatedNote.is_dirty === 1 && (updatedNote.updated_at === note.updated_at || !updatedNote.updated_at)) {
               await db.notes.update(note.id, { is_dirty: 0 });
            }
         }
@@ -91,6 +91,11 @@ export async function syncNotes() {
         }
         if (data.notes && data.notes.length > 0) {
            for (const serverNote of data.notes) {
+              const existingNote = await db.notes.get(serverNote.id);
+              // Do not overwrite local edits made while sync was in flight
+              if (existingNote && existingNote.is_dirty === 1) {
+                 continue;
+              }
               await db.notes.put({
                  ...serverNote,
                  is_dirty: 0

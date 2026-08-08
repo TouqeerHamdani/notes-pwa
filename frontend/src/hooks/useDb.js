@@ -42,11 +42,17 @@ export async function deleteNote(id) {
     await db.transaction('rw', db.notes, db.syncOutbox, async () => {
       const note = await db.notes.get(id);
       if (note) {
-        await db.notes.update(id, { is_deleted: 1, is_dirty: 1 });
+        const now = new Date().toISOString();
+        await db.notes.update(id, {
+          is_deleted: 1,
+          is_dirty: 1,
+          updated_at: now,
+          last_modified: now,
+        });
         await db.syncOutbox.add({
           note_id: id,
           action: 'delete',
-          timestamp: new Date().toISOString(),
+          timestamp: now,
           status: 'pending'
         });
       }
