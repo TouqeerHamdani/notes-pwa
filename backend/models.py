@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Uuid
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Uuid, Integer
 from sqlalchemy.orm import relationship
 from .db import Base
 
@@ -21,4 +21,5 @@ class Note(Base):
     is_synced = Column(Boolean, default=False, nullable=False)
     is_deleted = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    version = Column(Integer, default=1, nullable=False)
     user = relationship("User", back_populates="notes")
