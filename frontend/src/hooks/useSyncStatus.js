@@ -8,5 +8,21 @@ export function useSyncStatus() {
     return subscribeSyncStatus(setSyncState);
   }, []);
 
-  return syncState;
+  if (typeof syncState === 'string') {
+    return {
+      status: syncState,
+      isSyncing: syncState === 'Syncing...',
+      pendingCount: 0,
+      lastSyncedAt: null,
+      hasConflicts: false
+    };
+  }
+
+  return syncState || {
+    status: 'Synced',
+    isSyncing: false,
+    pendingCount: 0,
+    lastSyncedAt: null,
+    hasConflicts: false
+  };
 }
