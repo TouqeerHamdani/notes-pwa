@@ -17,3 +17,8 @@ db.version(2).stores({
 db.version(3).stores({
   notes: "id, userId, synced, last_modified, is_deleted",
 });
+
+db.version(4).stores({
+  notes: "id, title, folder_id, created_at, updated_at, user_id, is_dirty, is_deleted, version",
+  syncOutbox: "++id, note_id, action, timestamp, status",
+});
