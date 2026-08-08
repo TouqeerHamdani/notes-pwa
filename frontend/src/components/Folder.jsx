@@ -45,7 +45,6 @@ const Folder = ({
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
       await logout();
       window.location.href = '/auth';
     } catch (error) {

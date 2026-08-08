@@ -15,7 +15,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import supabase from '../lib/supabaseClient';
-import { logout } from '../lib/api';
+import { logout } from '../hooks/useAuth';
 
 const CommandPalette = ({
   isOpen,
@@ -132,7 +132,6 @@ const CommandPalette = ({
       icon: FiLogOut,
       action: async () => {
         try {
-          await supabase.auth.signOut();
           await logout();
         } catch (e) {
           console.error(e);
