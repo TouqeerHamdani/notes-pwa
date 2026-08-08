@@ -15,10 +15,11 @@ import {
   FiLogOut,
   FiCheckCircle
 } from 'react-icons/fi';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../lib/db.js';
 import supabase from '../lib/supabaseClient';
 import { logout } from '../lib/api';
+import { useFolderState } from '../hooks/useFolderState';
+import { useSyncStatus } from '../hooks/useSyncStatus';
+import FolderItem from './FolderItem';
 
 const Folder = ({
   selectedFolder = 'notes',
@@ -54,22 +55,15 @@ const Folder = ({
     }
   };
 
-  const allNotes = useLiveQuery(() => db.notes.filter(n => !n.is_deleted).toArray()) || [];
-  const trashNotes = useLiveQuery(() => db.notes.filter(n => n.is_deleted).toArray()) || [];
+  const {
+    notesCount,
+    pinnedCount,
+    trashCount,
+    tagCounts,
+    defaultFolders
+  } = useFolderState();
 
-  const notesCount = allNotes.length;
-  const pinnedCount = allNotes.filter(n => n.is_pinned || n.is_favorite).length;
-  const trashCount = trashNotes.length;
-
-  // Extract dynamic tags from notes
-  const tagCounts = {};
-  allNotes.forEach((n) => {
-    if (Array.isArray(n.tags)) {
-      n.tags.forEach((t) => {
-        tagCounts[t] = (tagCounts[t] || 0) + 1;
-      });
-    }
-  });
+  const syncState = useSyncStatus();
 
   const mainNav = [
     { id: 'notes', label: 'All Notes', icon: FiFileText, count: notesCount },
@@ -77,11 +71,10 @@ const Folder = ({
     { id: 'trash', label: 'Trash', icon: FiTrash2, count: trashCount }
   ];
 
-  const defaultFolders = [
-    { id: 'work', label: 'Work', count: allNotes.filter(n => n.folder_id === 'work').length },
-    { id: 'personal', label: 'Personal', count: allNotes.filter(n => n.folder_id === 'personal').length },
-    { id: 'ideas', label: 'Ideas & Drafts', count: allNotes.filter(n => n.folder_id === 'ideas').length }
-  ];
+  const handleSelectFolder = (id) => {
+    if (onSelectTag) onSelectTag(null);
+    if (onSelectFolder) onSelectFolder(id);
+  };
 
   return (
     <aside className="Folder bg-[var(--bg-sidebar)] w-full md:w-[240px] border-r border-[var(--border-color)] flex flex-col justify-between select-none flex-shrink-0 h-full p-3.5 text-[var(--text-main)] transition-all">
@@ -124,33 +117,18 @@ const Folder = ({
 
         {/* Main Navigation Links */}
         <div className="space-y-0.5 pt-1">
-          {mainNav.map((item) => {
-            const Icon = item.icon;
-            const isSelected = selectedFolder === item.id && !selectedTag;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  if (onSelectTag) onSelectTag(null);
-                  if (onSelectFolder) onSelectFolder(item.id);
-                }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                  isSelected
-                    ? 'bg-[var(--bg-card-active)] text-[var(--text-main)] font-semibold shadow-2xs'
-                    : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-main)]'
-                }`}
-              >
-                <div className="flex items-center space-x-2.5 truncate">
-                  <Icon className={`text-sm flex-shrink-0 ${isSelected ? 'text-[var(--accent-terracotta)]' : ''}`} />
-                  <span className="truncate">{item.label}</span>
-                </div>
-                <span className="text-[10px] font-mono text-[var(--text-subtle)] px-1.5 py-0.5 rounded bg-[var(--bg-card)]/50">
-                  {item.count}
-                </span>
-              </button>
-            );
-          })}
+          {mainNav.map((item) => (
+            <FolderItem
+              key={item.id}
+              id={item.id}
+              label={item.label}
+              icon={item.icon}
+              count={item.count}
+              isSelected={selectedFolder === item.id && !selectedTag}
+              onClick={handleSelectFolder}
+              type="main"
+            />
+          ))}
         </div>
 
         {/* Folder Taxonomy Tree Accordion */}
@@ -168,27 +146,17 @@ const Folder = ({
 
           {foldersOpen && (
             <div className="space-y-0.5 pl-1">
-              {defaultFolders.map((f) => {
-                const isSelected = selectedFolder === f.id && !selectedTag;
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => {
-                      if (onSelectTag) onSelectTag(null);
-                      if (onSelectFolder) onSelectFolder(f.id);
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                      isSelected
-                        ? 'bg-[var(--bg-card-active)] text-[var(--text-main)] font-semibold shadow-2xs'
-                        : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    <span className="truncate">{f.label}</span>
-                    <span className="text-[10px] font-mono text-[var(--text-subtle)]">{f.count}</span>
-                  </button>
-                );
-              })}
+              {defaultFolders.map((f) => (
+                <FolderItem
+                  key={f.id}
+                  id={f.id}
+                  label={f.label}
+                  count={f.count}
+                  isSelected={selectedFolder === f.id && !selectedTag}
+                  onClick={handleSelectFolder}
+                  type="folder"
+                />
+              ))}
             </div>
           )}
         </div>
@@ -211,24 +179,17 @@ const Folder = ({
               {Object.keys(tagCounts).length === 0 ? (
                 <p className="text-[11px] text-[var(--text-subtle)] px-2 py-1 italic">No tags yet</p>
               ) : (
-                Object.entries(tagCounts).map(([tag, count]) => {
-                  const isSelected = selectedTag === tag;
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => onSelectTag && onSelectTag(tag)}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                        isSelected
-                          ? 'bg-[var(--accent-sage-light)] text-[var(--accent-sage)] font-semibold shadow-2xs'
-                          : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-main)]'
-                      }`}
-                    >
-                      <span className="truncate">#{tag}</span>
-                      <span className="text-[10px] font-mono text-[var(--text-subtle)]">{count}</span>
-                    </button>
-                  );
-                })
+                Object.entries(tagCounts).map(([tag, count]) => (
+                  <FolderItem
+                    key={tag}
+                    id={tag}
+                    label={tag}
+                    count={count}
+                    isSelected={selectedTag === tag}
+                    onClick={() => onSelectTag && onSelectTag(tag)}
+                    type="tag"
+                  />
+                ))
               )}
             </div>
           )}
@@ -248,6 +209,10 @@ const Folder = ({
                 <span className="text-[10px] text-[var(--accent-sage)] flex items-center space-x-1 font-medium">
                   <FiCheckCircle className="text-[10px]" />
                   <span>Authenticated</span>
+                </span>
+                <span className="text-[10px] text-[var(--text-subtle)] block mt-1">
+                  Sync: {syncState.status}
+                  {syncState.pendingCount > 0 && ` (${syncState.pendingCount} pending)`}
                 </span>
               </div>
             </div>

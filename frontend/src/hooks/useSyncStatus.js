@@ -2,11 +2,27 @@ import { useState, useEffect } from 'react';
 import { subscribeSyncStatus, getSyncStatus } from '../lib/syncManager';
 
 export function useSyncStatus() {
-  const [status, setStatus] = useState(getSyncStatus());
+  const [syncState, setSyncState] = useState(getSyncStatus());
 
   useEffect(() => {
-    return subscribeSyncStatus(setStatus);
+    return subscribeSyncStatus(setSyncState);
   }, []);
 
-  return status;
+  if (typeof syncState === 'string') {
+    return {
+      status: syncState,
+      isSyncing: syncState === 'Syncing...',
+      pendingCount: 0,
+      lastSyncedAt: null,
+      hasConflicts: false
+    };
+  }
+
+  return syncState || {
+    status: 'Synced',
+    isSyncing: false,
+    pendingCount: 0,
+    lastSyncedAt: null,
+    hasConflicts: false
+  };
 }
