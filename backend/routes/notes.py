@@ -1,5 +1,6 @@
 import logging
 import uuid
+import time
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 from ..models import Note
@@ -7,6 +8,9 @@ from ..db import SessionLocal
 from .auth import user_required, limiter
 
 notes = Blueprint("notes", __name__)
+
+IDEMPOTENCY_CACHE = {}
+
 
 
 def parse_uuid(val):
@@ -77,7 +81,8 @@ def list_notes(user):
                         "content": n.content,
                         "last_modified": n.last_modified.isoformat(),
                         "created_at": n.created_at.isoformat(),
-                        "is_deleted": n.is_deleted
+                        "is_deleted": n.is_deleted,
+                        "version": n.version
                     }
                     for n in notes_list
                 ],
@@ -109,7 +114,8 @@ def list_notes(user):
                     "content": n.content,
                     "last_modified": n.last_modified.isoformat(),
                     "created_at": n.created_at.isoformat(),
-                    "is_deleted": n.is_deleted
+                    "is_deleted": n.is_deleted,
+                    "version": n.version
                 }
                 for n in notes_list
             ],
@@ -140,23 +146,29 @@ def create_note(user):
         return jsonify({"success": False, "message": "Invalid user ID"}), 400
 
     data = request.get_json() or {}
-    content = data.get("content", "").strip()
-    title = data.get("title", "").strip()
-
-    if not content:
+    
+    # Pre-strip content for basic empty check before pydantic
+    content = data.get("content", "")
+    if isinstance(content, str) and not content.strip():
         return jsonify({"success": False, "message": "Content cannot be empty"}), 400
-    if len(title) > MAX_TITLE_LENGTH:
-        return jsonify({"success": False, "message": f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters"}), 400
-    if len(content) > MAX_CONTENT_LENGTH:
-        return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
+        
+    try:
+        note_data = NoteCreate(**data)
+    except ValidationError as e:
+        for err in e.errors():
+            if err["loc"][0] == "title" and err["type"] == "value_error.any_str.max_length":
+                return jsonify({"success": False, "message": f"Title exceeds maximum length of 500 characters"}), 400
+            if err["loc"][0] == "content" and err["type"] == "value_error.any_str.max_length":
+                return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
+        return jsonify({"success": False, "message": str(e)}), 400
 
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
         note = Note(
             user_id=user_id,
-            title=title,
-            content=content,
+            title=note_data.title,
+            content=note_data.content,
             last_modified=now,
             created_at=now,
             is_deleted=False
@@ -172,7 +184,8 @@ def create_note(user):
                 "content": note.content,
                 "last_modified": note.last_modified.isoformat(),
                 "created_at": note.created_at.isoformat(),
-                "is_deleted": note.is_deleted
+                "is_deleted": note.is_deleted,
+                "version": note.version
             }
         }), 201
     except Exception as e:
@@ -194,15 +207,22 @@ def update_note(user, note_id):
         return jsonify({"success": False, "message": "Invalid ID format"}), 400
 
     data = request.get_json() or {}
-    content = data.get("content", "").strip()
-    title = data.get("title", "").strip()
-
-    if not content:
+    client_version = data.get("version")
+    
+    # Pre-strip content for basic empty check before pydantic
+    content = data.get("content", "")
+    if isinstance(content, str) and not content.strip():
         return jsonify({"success": False, "message": "Content cannot be empty"}), 400
-    if len(title) > MAX_TITLE_LENGTH:
-        return jsonify({"success": False, "message": f"Title exceeds maximum length of {MAX_TITLE_LENGTH} characters"}), 400
-    if len(content) > MAX_CONTENT_LENGTH:
-        return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
+        
+    try:
+        note_data = NoteUpdate(**data)
+    except ValidationError as e:
+        for err in e.errors():
+            if err["loc"][0] == "title" and err["type"] == "value_error.any_str.max_length":
+                return jsonify({"success": False, "message": f"Title exceeds maximum length of 500 characters"}), 400
+            if err["loc"][0] == "content" and err["type"] == "value_error.any_str.max_length":
+                return jsonify({"success": False, "message": "Content exceeds maximum limit of 1MB"}), 400
+        return jsonify({"success": False, "message": str(e)}), 400
 
     db = SessionLocal()
     try:
@@ -215,9 +235,25 @@ def update_note(user, note_id):
         if not note:
             return jsonify({"success": False, "message": "Note not found"}), 404
 
-        note.content = content
-        note.title = title
+        if client_version is not None and client_version < note.version:
+            return jsonify({
+                "success": False,
+                "message": "Conflict: Stale version",
+                "server_note": {
+                    "id": str(note.id),
+                    "title": note.title,
+                    "content": note.content,
+                    "last_modified": note.last_modified.isoformat(),
+                    "created_at": note.created_at.isoformat(),
+                    "is_deleted": note.is_deleted,
+                    "version": note.version
+                }
+            }), 409
+
+        note.content = note_data.content
+        note.title = note_data.title
         note.last_modified = datetime.now(timezone.utc)
+        note.version += 1
         db.commit()
         db.refresh(note)
 
@@ -229,7 +265,8 @@ def update_note(user, note_id):
                 "content": note.content,
                 "last_modified": note.last_modified.isoformat(),
                 "created_at": note.created_at.isoformat(),
-                "is_deleted": note.is_deleted
+                "is_deleted": note.is_deleted,
+                "version": note.version
             }
         }), 200
     except Exception as e:
@@ -262,6 +299,7 @@ def delete_note(user, note_id):
 
         note.is_deleted = True
         note.last_modified = datetime.now(timezone.utc)
+        note.version += 1
         db.commit()
 
         return jsonify({"success": True, "message": "Note deleted"}), 200
@@ -273,87 +311,59 @@ def delete_note(user, note_id):
         db.close()
 
 
+from pydantic import ValidationError
+from ..schemas.note_schema import NoteCreate, NoteUpdate, NoteSyncBatch
+
 @notes.route("/sync", methods=["POST"])
 @user_required
 @limiter.limit("10 per minute")
 def sync(user):
     """Sync notes: client sends local changes, server returns server changes since last_sync_timestamp."""
+    from ..services.sync_service import SyncService
+    
     user_id = parse_uuid(user.get("id"))
     if not user_id:
         return jsonify({"success": False, "message": "Invalid user ID"}), 400
 
+    idempotency_key = request.headers.get("Idempotency-Key")
+    now_ts = time.time()
+    cache_key = f"{user_id}:{idempotency_key}" if idempotency_key else None
+    
+    if cache_key:
+        if cache_key in IDEMPOTENCY_CACHE:
+            resp_data, status_code, timestamp = IDEMPOTENCY_CACHE[cache_key]
+            if now_ts - timestamp < 86400:
+                return jsonify(resp_data), status_code
+            else:
+                del IDEMPOTENCY_CACHE[cache_key]
+
     data = request.get_json() or {}
-    client_notes = data.get("notes", [])
-    last_sync_timestamp = data.get("last_sync_timestamp")
-
-    if not isinstance(client_notes, list):
-        return jsonify({"success": False, "message": "Invalid notes format"}), 400
-
-    if len(client_notes) > MAX_BATCH_SIZE:
+    
+    client_notes_raw = data.get("notes", [])
+    if isinstance(client_notes_raw, list) and len(client_notes_raw) > 100:
         return jsonify({
             "success": False,
-            "message": f"Batch size exceeds maximum limit of {MAX_BATCH_SIZE} notes"
+            "message": "Batch size exceeds maximum limit of 100 notes"
         }), 400
+        
+    try:
+        sync_batch = NoteSyncBatch(**data)
+    except ValidationError as e:
+        return jsonify({"success": False, "message": "Invalid notes format", "errors": e.errors()}), 400
 
     db = SessionLocal()
     try:
-        # Upsert client notes
-        for note_data in client_notes:
-            if not isinstance(note_data, dict):
-                continue
-
-            raw_id = note_data.get("id")
-            note_uuid = parse_uuid(raw_id)
-            title = (note_data.get("title") or "").strip()[:MAX_TITLE_LENGTH]
-            content = (note_data.get("content") or "").strip()[:MAX_CONTENT_LENGTH]
-            raw_modified = note_data.get("last_modified")
-            is_deleted = bool(note_data.get("is_deleted", False))
-
-            if not note_uuid or not raw_modified:
-                continue
-
-            client_dt = parse_iso_datetime(raw_modified)
-            if not client_dt:
-                continue
-
-            existing = db.query(Note).filter(
-                Note.id == note_uuid,
-                Note.user_id == user_id
-            ).first()
-
-            if existing:
-                # Last-write-wins: compare timezone-aware datetimes safely
-                existing_last_mod = ensure_tz_aware(existing.last_modified)
-                if client_dt > existing_last_mod:
-                    existing.content = content
-                    existing.title = title
-                    existing.last_modified = client_dt
-                    existing.is_deleted = is_deleted
-            else:
-                # Create new note
-                note = Note(
-                    id=note_uuid,
-                    user_id=user_id,
-                    title=title,
-                    content=content,
-                    last_modified=client_dt,
-                    created_at=datetime.now(timezone.utc),
-                    is_deleted=is_deleted
-                )
-                db.add(note)
-
-        db.commit()
-
-        # Fetch server changes since last_sync_timestamp
-        query = db.query(Note).filter(Note.user_id == user_id)
-        if last_sync_timestamp:
-            sync_dt = parse_iso_datetime(last_sync_timestamp)
-            if sync_dt:
-                query = query.filter(Note.last_modified > sync_dt)
-
-        server_notes = query.all()
-
-        return jsonify({
+        # Pydantic parsed data
+        client_notes = [note.dict() for note in sync_batch.notes]
+        
+        server_notes, conflicts = SyncService.process_sync(
+            db=db,
+            user_id=user_id,
+            client_notes=client_notes,
+            last_sync_timestamp=sync_batch.last_sync_timestamp
+        )
+        
+        response_data = {
             "success": True,
             "notes": [
                 {
@@ -361,11 +371,19 @@ def sync(user):
                     "title": n.title,
                     "content": n.content,
                     "last_modified": n.last_modified.isoformat(),
-                    "is_deleted": n.is_deleted
+                    "is_deleted": n.is_deleted,
+                    "version": n.version
                 }
                 for n in server_notes
-            ]
-        }), 200
+            ],
+            "conflicts": conflicts,
+            "server_timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if cache_key:
+            IDEMPOTENCY_CACHE[cache_key] = (response_data, 200, time.time())
+            
+        return jsonify(response_data), 200
     except Exception as e:
         db.rollback()
         logging.exception("Error syncing notes")
