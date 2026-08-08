@@ -26,6 +26,9 @@ def _mock_create_engine(url, *args, **kwargs):
     if str(url).startswith("sqlite"):
         kwargs["poolclass"] = StaticPool
         kwargs["connect_args"] = {"check_same_thread": False}
+        kwargs.pop("pool_size", None)
+        kwargs.pop("max_overflow", None)
+        kwargs.pop("pool_timeout", None)
     return _original_create_engine(url, *args, **kwargs)
 
 
