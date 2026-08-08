@@ -5,6 +5,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/";
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,
+  timeout: 10000,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -15,9 +16,12 @@ export const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   async (config) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
+      const isApiUrl = config.baseURL === BASE_URL || (config.url && config.url.startsWith(BASE_URL));
+      if (isApiUrl) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          config.headers.Authorization = `Bearer ${session.access_token}`;
+        }
       }
     } catch (err) {
       console.warn("Could not fetch Supabase session for API request:", err);
@@ -68,7 +72,8 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await axiosInstance.post("/auth/refresh");
+        const { data, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
         processQueue(null);
         return axiosInstance(originalRequest);
       } catch (refreshError) {
