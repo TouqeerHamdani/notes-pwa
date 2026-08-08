@@ -35,6 +35,18 @@ export default defineConfig({
                 maxAgeSeconds: 30 * 24 * 60 * 60
               }
             }
+          },
+          {
+            urlPattern: /\/api\/.*sync/,
+            handler: 'NetworkOnly',
+            options: {
+              backgroundSync: {
+                name: 'sync-queue',
+                options: {
+                  maxRetentionTime: 24 * 60
+                }
+              }
+            }
           }
         ]
       }
